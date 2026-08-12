@@ -24,9 +24,12 @@ find_package(trajectory_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(moveit_core REQUIRED)
+find_package(moveit_hybrid_planning REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(pluginlib REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_msgs REQUIRED)
@@ -59,6 +62,25 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetEefPose.srv"
 )
 
+add_library(movensys_time_indexed_sampler SHARED
+  src/time_indexed_sampler.cpp
+)
+target_include_directories(movensys_time_indexed_sampler PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(movensys_time_indexed_sampler
+  moveit_core
+  moveit_hybrid_planning
+  moveit_msgs
+  pluginlib
+  rclcpp
+)
+pluginlib_export_plugin_description_file(
+  moveit_hybrid_planning
+  time_indexed_sampler_plugin.xml
+)
+
 # MoveIt2 Client Library
 add_library(moveit2_client_lib SHARED
   src/moveit2_client.cpp
@@ -83,6 +105,11 @@ install(DIRECTORY
   launch
   rviz
   config
+  DESTINATION share/${PROJECT_NAME}/
+)
+
+install(FILES
+  time_indexed_sampler_plugin.xml
   DESTINATION share/${PROJECT_NAME}/
 )
 
@@ -185,7 +212,11 @@ if(HAVE_SERVO_COMMAND_TYPE)
   )
 endif()
 
-install(TARGETS moveit2_client_lib isaacsim_bridge gazebo_bridge
+install(TARGETS
+  moveit2_client_lib
+  movensys_time_indexed_sampler
+  isaacsim_bridge
+  gazebo_bridge
   EXPORT export_moveit2_client_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -196,9 +227,12 @@ ament_export_targets(export_moveit2_client_lib HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rclcpp
   std_srvs
+  moveit_core
+  moveit_hybrid_planning
   moveit_ros_planning_interface
   moveit_msgs
   geometry_msgs
+  pluginlib
   tf2_ros
   tf2_msgs
   tf2_geometry_msgs

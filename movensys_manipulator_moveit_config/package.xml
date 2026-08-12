@@ -20,9 +20,12 @@
   <depend>control_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>moveit_core</depend>
+  <depend>moveit_hybrid_planning</depend>
   <depend>moveit_ros_planning_interface</depend>
   <depend>moveit_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>pluginlib</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_msgs</depend>
