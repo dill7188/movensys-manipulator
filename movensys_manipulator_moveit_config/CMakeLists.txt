@@ -191,6 +191,13 @@ ament_target_dependencies(trajectory_api
   std_srvs
 )
 
+add_executable(hybrid_pose_alternator src/hybrid_pose_alternator.cpp)
+ament_target_dependencies(hybrid_pose_alternator
+  rclcpp
+  rclcpp_action
+  moveit_msgs
+)
+
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(trajectory_api ${cpp_typesupport_target})
 
@@ -200,6 +207,7 @@ install(TARGETS
   obstacle_avoidance_cpp
   apriltag_pick_and_place
   trajectory_api
+  hybrid_pose_alternator
   yolo_pick_and_place_cpp
   DESTINATION lib/${PROJECT_NAME}
 )

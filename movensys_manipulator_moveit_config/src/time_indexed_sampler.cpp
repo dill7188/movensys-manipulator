@@ -95,7 +95,7 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajecto
   const double target_time = std::clamp(getElapsedTime() + lookahead_time_, 0.0, reference_duration_);
 
   const std::size_t target_index = findUpperWaypoint(target_time);
-  const auto & target_state = reference_trajectory_->getWayPoint(target_index);
+  const auto target_state = interpolateWaypoint(target_time);
   RCLCPP_DEBUG(
     node_->get_logger(),
     "TimeIndexedSampler local sample: elapsed=%.3f, target_time=%.3f, target_index=%zu/%zu",
