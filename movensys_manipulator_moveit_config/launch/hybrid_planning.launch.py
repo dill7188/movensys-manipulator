@@ -42,6 +42,8 @@ def launch_setup(context, *args, **kwargs):
     )
 
     group_name = LaunchConfiguration("group_name").perform(context)
+    global_planning_pipeline = LaunchConfiguration(
+        "global_planning_pipeline").perform(context)
     local_solution_topic = LaunchConfiguration("local_solution_topic").perform(context)
     local_solution_topic_type = LaunchConfiguration(
         "local_solution_topic_type").perform(context)
@@ -58,6 +60,11 @@ def launch_setup(context, *args, **kwargs):
     local_planner_param["collision_object_topic"] = namespaced_topic(
         ros_namespace, local_planner_param["collision_object_topic"])
 
+    global_planner_param["planning_pipelines"]["pipeline_names"] = [
+        global_planning_pipeline]
+    global_planner_param["plan_request_params"]["planning_pipeline"] = (
+        global_planning_pipeline)
+
     robot_description = {
         "robot_description": moveit_config_dict["robot_description"],
     }
@@ -73,10 +80,12 @@ def launch_setup(context, *args, **kwargs):
         "robot_description_planning": moveit_config_dict[
             "robot_description_planning"],
     }
-    ompl_planning_pipeline_config = {
+    planning_pipeline_config = {
         "planning_pipelines": moveit_config_dict["planning_pipelines"],
-        "ompl": moveit_config_dict["ompl"],
     }
+    if global_planning_pipeline in moveit_config_dict:
+        planning_pipeline_config[global_planning_pipeline] = moveit_config_dict[
+            global_planning_pipeline]
 
     return [
         ComposableNodeContainer(
@@ -96,7 +105,7 @@ def launch_setup(context, *args, **kwargs):
                         robot_description_semantic,
                         kinematics_yaml,
                         robot_description_planning,
-                        ompl_planning_pipeline_config,
+                        planning_pipeline_config,
                         {"use_sim_time": use_sim_time},
                     ],
                 ),
@@ -133,6 +142,7 @@ def generate_launch_description():
         DeclareLaunchArgument("ros_namespace", default_value=""),
         DeclareLaunchArgument(
             "group_name", default_value="movensys_manipulator_arm"),
+        DeclareLaunchArgument("global_planning_pipeline", default_value="ompl"),
         DeclareLaunchArgument(
             "local_solution_topic", default_value="/joint_trajectory"),
         DeclareLaunchArgument(

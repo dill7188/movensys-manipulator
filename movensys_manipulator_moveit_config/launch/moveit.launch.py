@@ -195,6 +195,7 @@ def launch_setup(context, *args, **kwargs):
         launch_arguments={
             "moveit_config_dump": yaml.dump(moveit_config.to_dict()),
             "group_name": "movensys_manipulator_arm",
+            "global_planning_pipeline": "ompl",
             "local_solution_topic": LaunchConfiguration("hybrid_local_solution_topic"),
             "local_solution_topic_type": "trajectory_msgs/JointTrajectory",
             "use_sim_time": use_sim_time,

@@ -209,12 +209,32 @@ def launch_setup(context: LaunchContext, *args, **kwargs) -> List[Node]:
         launch_arguments={'use_sim_time': use_sim_time}.items(),
     )
 
+    hybrid_planning_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([
+                FindPackageShare('movensys_manipulator_moveit_config'),
+                'launch',
+                'hybrid_planning.launch.py',
+            ])
+        ),
+        launch_arguments={
+            'moveit_config_dump': yaml.dump(moveit_config.to_dict()),
+            'group_name': 'movensys_manipulator_arm',
+            'global_planning_pipeline': 'isaac_ros_cumotion',
+            'local_solution_topic': LaunchConfiguration('hybrid_local_solution_topic'),
+            'local_solution_topic_type': 'trajectory_msgs/JointTrajectory',
+            'use_sim_time': use_sim_time,
+        }.items(),
+        condition=IfCondition(LaunchConfiguration('enable_hybrid_planning')),
+    )
+
     nodes = [
         robot_state_publisher,
         move_group_node,
         cumotion_planner_node,
         rviz_node,
         api_launch,
+        hybrid_planning_launch,
     ]
 
     if static_planning_scene_server is not None:
@@ -249,6 +269,16 @@ def generate_launch_description():
             default_value='true',
             description='Start robot_state_publisher here (set false to defer to a '
                         'backend launch that publishes /robot_description)'
+        ),
+        DeclareLaunchArgument(
+            'enable_hybrid_planning',
+            default_value='false',
+            description='Start MoveIt Hybrid Planning components'
+        ),
+        DeclareLaunchArgument(
+            'hybrid_local_solution_topic',
+            default_value='/joint_trajectory',
+            description='JointTrajectory topic published by the hybrid local planner'
         ),
     ]
 
