@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <numeric>
 #include <vector>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -69,6 +70,8 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
   reference_duration_ =
     reference_trajectory_->getWayPointDurationFromStart(reference_trajectory_->getWayPointCount() - 1);
   trajectory_start_time_ = node_->now();
+  trajectory_time_offset_ = 0.0;
+  pending_time_offset_alignment_ = true;
   has_reference_trajectory_ = true;
 
   RCLCPP_INFO(
@@ -81,7 +84,7 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
 }
 
 moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajectory(
-  const moveit::core::RobotState & /* current_state */,
+  const moveit::core::RobotState & current_state,
   robot_trajectory::RobotTrajectory & local_trajectory)
 {
   local_trajectory.clear();
@@ -92,14 +95,25 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajecto
     return feedback_;
   }
 
-  const double target_time = std::clamp(getElapsedTime() + lookahead_time_, 0.0, reference_duration_);
+  if (pending_time_offset_alignment_) {
+    trajectory_time_offset_ = findClosestWaypointTime(current_state);
+    pending_time_offset_alignment_ = false;
+    RCLCPP_INFO(
+      node_->get_logger(),
+      "TimeIndexedSampler aligned new reference trajectory to current state at t=%.3f s",
+      trajectory_time_offset_);
+  }
+
+  const double reference_time = getReferenceTime();
+  const double target_time = std::clamp(reference_time + lookahead_time_, 0.0, reference_duration_);
 
   const std::size_t target_index = findUpperWaypoint(target_time);
   const auto target_state = interpolateWaypoint(target_time);
   RCLCPP_DEBUG(
     node_->get_logger(),
-    "TimeIndexedSampler local sample: elapsed=%.3f, target_time=%.3f, target_index=%zu/%zu",
-    getElapsedTime(), target_time, target_index, reference_trajectory_->getWayPointCount());
+    "TimeIndexedSampler local sample: elapsed=%.3f, offset=%.3f, target_time=%.3f, target_index=%zu/%zu",
+    getElapsedTime(), trajectory_time_offset_, target_time, target_index,
+    reference_trajectory_->getWayPointCount());
   local_trajectory.addSuffixWayPoint(target_state, output_dt_);
 
   return feedback_;
@@ -115,7 +129,7 @@ double TimeIndexedSampler::getTrajectoryProgress(const moveit::core::RobotState 
   if (reference_duration_ <= std::numeric_limits<double>::epsilon()) {
     return 1.0;
   }
-  return std::clamp(getElapsedTime() / reference_duration_, 0.0, 1.0);
+  return std::clamp(getReferenceTime() / reference_duration_, 0.0, 1.0);
 }
 
 bool TimeIndexedSampler::reset()
@@ -123,6 +137,8 @@ bool TimeIndexedSampler::reset()
   has_reference_trajectory_ = false;
   reference_trajectory_.reset();
   reference_duration_ = 0.0;
+  trajectory_time_offset_ = 0.0;
+  pending_time_offset_alignment_ = false;
   return true;
 }
 
@@ -140,6 +156,48 @@ double TimeIndexedSampler::getElapsedTime() const
     return 0.0;
   }
   return std::max(0.0, (node_->now() - trajectory_start_time_).seconds());
+}
+
+double TimeIndexedSampler::getReferenceTime() const
+{
+  return std::clamp(getElapsedTime() + trajectory_time_offset_, 0.0, reference_duration_);
+}
+
+double TimeIndexedSampler::findClosestWaypointTime(
+  const moveit::core::RobotState & current_state) const
+{
+  if (!reference_trajectory_ || reference_trajectory_->empty() || !joint_group_) {
+    return 0.0;
+  }
+
+  std::vector<double> current_positions;
+  current_state.copyJointGroupPositions(joint_group_, current_positions);
+
+  double best_distance_squared = std::numeric_limits<double>::infinity();
+  std::size_t best_index = 0;
+
+  for (std::size_t i = 0; i < reference_trajectory_->getWayPointCount(); ++i) {
+    std::vector<double> waypoint_positions;
+    reference_trajectory_->getWayPoint(i).copyJointGroupPositions(joint_group_, waypoint_positions);
+    if (waypoint_positions.size() != current_positions.size()) {
+      continue;
+    }
+
+    const double distance_squared = std::inner_product(
+      current_positions.begin(), current_positions.end(), waypoint_positions.begin(), 0.0,
+      std::plus<>(),
+      [](double current, double waypoint) {
+        const double diff = current - waypoint;
+        return diff * diff;
+      });
+
+    if (distance_squared < best_distance_squared) {
+      best_distance_squared = distance_squared;
+      best_index = i;
+    }
+  }
+
+  return reference_trajectory_->getWayPointDurationFromStart(best_index);
 }
 
 std::size_t TimeIndexedSampler::findUpperWaypoint(double target_time) const

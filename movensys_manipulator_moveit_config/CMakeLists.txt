@@ -81,6 +81,26 @@ pluginlib_export_plugin_description_file(
   time_indexed_sampler_plugin.xml
 )
 
+add_library(movensys_stop_before_collision_forward_trajectory SHARED
+  src/stop_before_collision_forward_trajectory.cpp
+)
+target_include_directories(movensys_stop_before_collision_forward_trajectory PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(movensys_stop_before_collision_forward_trajectory
+  moveit_core
+  moveit_hybrid_planning
+  moveit_msgs
+  pluginlib
+  rclcpp
+  trajectory_msgs
+)
+pluginlib_export_plugin_description_file(
+  moveit_hybrid_planning
+  stop_before_collision_forward_trajectory_plugin.xml
+)
+
 # MoveIt2 Client Library
 add_library(moveit2_client_lib SHARED
   src/moveit2_client.cpp
@@ -110,11 +130,22 @@ install(DIRECTORY
 
 install(FILES
   time_indexed_sampler_plugin.xml
+  stop_before_collision_forward_trajectory_plugin.xml
   DESTINATION share/${PROJECT_NAME}/
 )
 
 install(DIRECTORY include/
   DESTINATION include
+)
+
+install(TARGETS
+  movensys_time_indexed_sampler
+  movensys_stop_before_collision_forward_trajectory
+  moveit2_client_lib
+  EXPORT ${PROJECT_NAME}Targets
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 add_executable(isaacsim_bridge src/isaacsim_bridge.cpp)

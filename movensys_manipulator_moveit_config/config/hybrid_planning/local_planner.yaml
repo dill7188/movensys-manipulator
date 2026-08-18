@@ -1,6 +1,6 @@
 robot_description: "robot_description"
 trajectory_operator_plugin_name: "movensys_manipulator_moveit_config/TimeIndexedSampler"
-local_constraint_solver_plugin_name: "moveit_hybrid_planning/ForwardTrajectory"
+local_constraint_solver_plugin_name: "movensys_manipulator_moveit_config/StopBeforeCollisionForwardTrajectory"
 local_planning_frequency: 10.0
 global_solution_topic: "global_trajectory"
 local_solution_topic: "/joint_trajectory"
@@ -19,3 +19,7 @@ time_indexed_sampler:
   output_dt: 0.1
   goal_reached_tolerance: 0.001
   debug_no_store_reference_trajectory: false
+
+stop_before_collision_forward_trajectory:
+  max_stuck_iterations: 100
+  stuck_position_tolerance: 0.000001
