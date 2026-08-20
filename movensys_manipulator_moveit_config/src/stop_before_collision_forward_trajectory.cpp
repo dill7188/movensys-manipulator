@@ -19,6 +19,13 @@
 namespace movensys_manipulator_moveit_config
 {
 
+namespace
+{
+constexpr double kStartPointTrajectoryMinDuration = 0.25;
+constexpr const char * kStartPointTrajectoryFrame = "start_point_trajectory";
+constexpr const char * kReproducedTrajectoryFrame = "reproduced_trajectory";
+}  // namespace
+
 class StopBeforeCollisionForwardTrajectory
   : public moveit::hybrid_planning::LocalConstraintSolverInterface
 {
@@ -108,6 +115,10 @@ public:
     moveit_msgs::msg::RobotTrajectory robot_trajectory_msg;
     local_trajectory.getRobotTrajectoryMsg(robot_trajectory_msg);
     local_solution = robot_trajectory_msg.joint_trajectory;
+    const double local_duration =
+      local_trajectory.getWayPointDurationFromStart(local_trajectory.getWayPointCount() - 1);
+    local_solution.header.frame_id = local_duration >= kStartPointTrajectoryMinDuration ?
+      kStartPointTrajectoryFrame : kReproducedTrajectoryFrame;
 
     if (local_solution.joint_names.empty()) {
       local_solution.joint_names = joint_group_->getActiveJointModelNames();

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <numeric>
 #include <vector>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -31,13 +30,16 @@ bool TimeIndexedSampler::initialize(
   output_dt_ = node_->declare_parameter<double>("time_indexed_sampler.output_dt", 0.1);
   goal_reached_tolerance_ =
     node_->declare_parameter<double>("time_indexed_sampler.goal_reached_tolerance", 1.0e-3);
+  first_point_blend_duration_ =
+    node_->declare_parameter<double>("time_indexed_sampler.first_point_blend_duration", 0.5);
   debug_no_store_reference_trajectory_ =
     node_->declare_parameter<bool>("time_indexed_sampler.debug_no_store_reference_trajectory", false);
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "Initialized TimeIndexedSampler for group '%s' (lookahead_time=%.3f, output_dt=%.3f)",
-    group_name.c_str(), lookahead_time_, output_dt_);
+    "Initialized TimeIndexedSampler for group '%s' "
+    "(lookahead_time=%.3f, output_dt=%.3f, first_point_blend_duration=%.3f)",
+    group_name.c_str(), lookahead_time_, output_dt_, first_point_blend_duration_);
   return true;
 }
 
@@ -48,6 +50,8 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
     has_reference_trajectory_ = false;
     reference_trajectory_.reset();
     reference_duration_ = 0.0;
+    trajectory_time_offset_ = 0.0;
+    pending_first_point_blend_ = false;
     RCLCPP_WARN(node_->get_logger(), "TimeIndexedSampler received an empty reference trajectory");
     return feedback_;
   }
@@ -58,6 +62,8 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
     has_reference_trajectory_ = false;
     reference_trajectory_.reset();
     reference_duration_ = 0.0;
+    trajectory_time_offset_ = 0.0;
+    pending_first_point_blend_ = false;
     RCLCPP_WARN(
       node_->get_logger(),
       "TimeIndexedSampler debug_no_store_reference_trajectory=true: received points=%zu, duration=%.3f, not storing",
@@ -69,22 +75,25 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
     std::make_shared<robot_trajectory::RobotTrajectory>(new_trajectory, true);
   reference_duration_ =
     reference_trajectory_->getWayPointDurationFromStart(reference_trajectory_->getWayPointCount() - 1);
-  trajectory_start_time_ = node_->now();
   trajectory_time_offset_ = 0.0;
-  pending_time_offset_alignment_ = true;
+  pending_first_point_blend_ = first_point_blend_duration_ > std::numeric_limits<double>::epsilon();
+  if (!pending_first_point_blend_) {
+    trajectory_start_time_ = node_->now();
+  }
   has_reference_trajectory_ = true;
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "TimeIndexedSampler accepted reference trajectory: points=%zu, duration=%.3f",
+    "TimeIndexedSampler accepted reference trajectory: "
+    "points=%zu, duration=%.3f, first_point_blend_duration=%.3f",
     reference_trajectory_->getWayPointCount(),
-    reference_duration_);
+    reference_duration_, first_point_blend_duration_);
 
   return feedback_;
 }
 
 moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajectory(
-  const moveit::core::RobotState & current_state,
+  const moveit::core::RobotState & /* current_state */,
   robot_trajectory::RobotTrajectory & local_trajectory)
 {
   local_trajectory.clear();
@@ -95,13 +104,16 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajecto
     return feedback_;
   }
 
-  if (pending_time_offset_alignment_) {
-    trajectory_time_offset_ = findClosestWaypointTime(current_state);
-    pending_time_offset_alignment_ = false;
+  if (pending_first_point_blend_) {
+    pending_first_point_blend_ = false;
+    trajectory_start_time_ = node_->now();
+    local_trajectory.addSuffixWayPoint(
+      reference_trajectory_->getWayPoint(0), first_point_blend_duration_);
     RCLCPP_INFO(
       node_->get_logger(),
-      "TimeIndexedSampler aligned new reference trajectory to current state at t=%.3f s",
-      trajectory_time_offset_);
+      "TimeIndexedSampler sampled first reference waypoint as a single %.3f s trajectory",
+      first_point_blend_duration_);
+    return feedback_;
   }
 
   const double reference_time = getReferenceTime();
@@ -126,6 +138,10 @@ double TimeIndexedSampler::getTrajectoryProgress(const moveit::core::RobotState 
     return 0.0;
   }
 
+  if (pending_first_point_blend_) {
+    return 0.0;
+  }
+
   if (reference_duration_ <= std::numeric_limits<double>::epsilon()) {
     return 1.0;
   }
@@ -138,7 +154,7 @@ bool TimeIndexedSampler::reset()
   reference_trajectory_.reset();
   reference_duration_ = 0.0;
   trajectory_time_offset_ = 0.0;
-  pending_time_offset_alignment_ = false;
+  pending_first_point_blend_ = false;
   return true;
 }
 
@@ -163,43 +179,6 @@ double TimeIndexedSampler::getReferenceTime() const
   return std::clamp(getElapsedTime() + trajectory_time_offset_, 0.0, reference_duration_);
 }
 
-double TimeIndexedSampler::findClosestWaypointTime(
-  const moveit::core::RobotState & current_state) const
-{
-  if (!reference_trajectory_ || reference_trajectory_->empty() || !joint_group_) {
-    return 0.0;
-  }
-
-  std::vector<double> current_positions;
-  current_state.copyJointGroupPositions(joint_group_, current_positions);
-
-  double best_distance_squared = std::numeric_limits<double>::infinity();
-  std::size_t best_index = 0;
-
-  for (std::size_t i = 0; i < reference_trajectory_->getWayPointCount(); ++i) {
-    std::vector<double> waypoint_positions;
-    reference_trajectory_->getWayPoint(i).copyJointGroupPositions(joint_group_, waypoint_positions);
-    if (waypoint_positions.size() != current_positions.size()) {
-      continue;
-    }
-
-    const double distance_squared = std::inner_product(
-      current_positions.begin(), current_positions.end(), waypoint_positions.begin(), 0.0,
-      std::plus<>(),
-      [](double current, double waypoint) {
-        const double diff = current - waypoint;
-        return diff * diff;
-      });
-
-    if (distance_squared < best_distance_squared) {
-      best_distance_squared = distance_squared;
-      best_index = i;
-    }
-  }
-
-  return reference_trajectory_->getWayPointDurationFromStart(best_index);
-}
-
 std::size_t TimeIndexedSampler::findUpperWaypoint(double target_time) const
 {
   const std::size_t count = reference_trajectory_->getWayPointCount();
@@ -209,6 +188,46 @@ std::size_t TimeIndexedSampler::findUpperWaypoint(double target_time) const
     }
   }
   return count - 1;
+}
+
+moveit::core::RobotState TimeIndexedSampler::interpolateStates(
+  const moveit::core::RobotState & lower_state,
+  const moveit::core::RobotState & upper_state,
+  double ratio) const
+{
+  ratio = std::clamp(ratio, 0.0, 1.0);
+
+  std::vector<double> lower_positions;
+  std::vector<double> upper_positions;
+  std::vector<double> lower_velocities;
+  std::vector<double> upper_velocities;
+  lower_state.copyJointGroupPositions(joint_group_, lower_positions);
+  upper_state.copyJointGroupPositions(joint_group_, upper_positions);
+  lower_state.copyJointGroupVelocities(joint_group_, lower_velocities);
+  upper_state.copyJointGroupVelocities(joint_group_, upper_velocities);
+
+  if (lower_positions.size() != upper_positions.size()) {
+    return upper_state;
+  }
+
+  std::vector<double> target_positions(lower_positions.size(), 0.0);
+  for (std::size_t i = 0; i < target_positions.size(); ++i) {
+    target_positions[i] = lower_positions[i] + ratio * (upper_positions[i] - lower_positions[i]);
+  }
+
+  moveit::core::RobotState target_state(lower_state);
+  target_state.setJointGroupPositions(joint_group_, target_positions);
+
+  if (lower_velocities.size() == upper_velocities.size()) {
+    std::vector<double> target_velocities(lower_velocities.size(), 0.0);
+    for (std::size_t i = 0; i < target_velocities.size(); ++i) {
+      target_velocities[i] = lower_velocities[i] + ratio * (upper_velocities[i] - lower_velocities[i]);
+    }
+    target_state.setJointGroupVelocities(joint_group_, target_velocities);
+  }
+
+  target_state.update();
+  return target_state;
 }
 
 moveit::core::RobotState TimeIndexedSampler::interpolateWaypoint(double target_time) const
@@ -225,23 +244,10 @@ moveit::core::RobotState TimeIndexedSampler::interpolateWaypoint(double target_t
   const double ratio = span > std::numeric_limits<double>::epsilon() ?
     std::clamp((target_time - lower_time) / span, 0.0, 1.0) : 0.0;
 
-  const auto & lower_state = reference_trajectory_->getWayPoint(lower_index);
-  const auto & upper_state = reference_trajectory_->getWayPoint(upper_index);
-
-  std::vector<double> lower_positions;
-  std::vector<double> upper_positions;
-  lower_state.copyJointGroupPositions(joint_group_, lower_positions);
-  upper_state.copyJointGroupPositions(joint_group_, upper_positions);
-
-  std::vector<double> target_positions(lower_positions.size(), 0.0);
-  for (std::size_t i = 0; i < target_positions.size(); ++i) {
-    target_positions[i] = lower_positions[i] + ratio * (upper_positions[i] - lower_positions[i]);
-  }
-
-  moveit::core::RobotState target_state(lower_state);
-  target_state.setJointGroupPositions(joint_group_, target_positions);
-  target_state.update();
-  return target_state;
+  return interpolateStates(
+    reference_trajectory_->getWayPoint(lower_index),
+    reference_trajectory_->getWayPoint(upper_index),
+    ratio);
 }
 
 }  // namespace movensys_manipulator_moveit_config

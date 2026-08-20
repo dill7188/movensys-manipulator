@@ -18,6 +18,7 @@ time_indexed_sampler:
   lookahead_time: 0.1
   output_dt: 0.1
   goal_reached_tolerance: 0.001
+  first_point_blend_duration: 0.5
   debug_no_store_reference_trajectory: false
 
 stop_before_collision_forward_trajectory:
