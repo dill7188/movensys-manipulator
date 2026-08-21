@@ -14,18 +14,18 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('movensys_manipulator_perception')
     manipulator_model = os.environ.get('MANIPULATOR_MODEL', 'dobot_cr3a')
     camera_tf_arg_defaults = {
-        'camera_0_x': '-0.397',
-        'camera_0_y': '-0.239',
-        'camera_0_z': '0.959',
-        'camera_0_roll': '-0.226',
-        'camera_0_pitch': '1.087',
-        'camera_0_yaw': '0.456',
-        'camera_1_x': '0.347',
-        'camera_1_y': '-0.365',
-        'camera_1_z': '1.019',
-        'camera_1_roll': '-0.056',
-        'camera_1_pitch': '0.677',
-        'camera_1_yaw': '2.423',
+        'camera_0_x': '-0.442',
+        'camera_0_y': '-0.129',
+        'camera_0_z': '0.917',
+        'camera_0_roll': '-0.076',
+        'camera_0_pitch': '0.847',
+        'camera_0_yaw': '0.646',
+        'camera_1_x': '0.367',
+        'camera_1_y': '-0.235',
+        'camera_1_z': '0.909',
+        'camera_1_roll': '0.074',
+        'camera_1_pitch': '0.867',
+        'camera_1_yaw': '2.342',
     }
 
     xacro_file = os.path.join(

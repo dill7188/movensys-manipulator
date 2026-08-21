@@ -70,6 +70,7 @@ public:
   bool reset() override
   {
     path_invalidation_event_sent_ = false;
+    hold_empty_until_new_trajectory_ = false;
     num_iterations_stuck_ = 0;
     prev_waypoint_target_.reset();
     return true;
@@ -88,9 +89,12 @@ public:
     }
 
     const auto & target_state = local_trajectory.getWayPoint(local_trajectory.getWayPointCount() - 1);
+    const double local_duration =
+      local_trajectory.getWayPointDurationFromStart(local_trajectory.getWayPointCount() - 1);
     local_solution.joint_names = joint_group_->getActiveJointModelNames();
 
     if (stop_before_collision_ && isStateColliding(target_state)) {
+      hold_empty_until_new_trajectory_ = true;
       if (!path_invalidation_event_sent_) {
         feedback_.feedback = std::string(moveit::hybrid_planning::toString(
           moveit::hybrid_planning::COLLISION_AHEAD));
@@ -104,6 +108,17 @@ public:
       return feedback_;
     }
 
+    if (hold_empty_until_new_trajectory_) {
+      if (local_duration < kStartPointTrajectoryMinDuration) {
+        RCLCPP_DEBUG(
+          node_->get_logger(),
+          "Holding empty JointTrajectory until a new start-point trajectory is available");
+        return feedback_;
+      }
+
+      hold_empty_until_new_trajectory_ = false;
+    }
+
     path_invalidation_event_sent_ = false;
 
     if (isStuck(target_state)) {
@@ -115,8 +130,6 @@ public:
     moveit_msgs::msg::RobotTrajectory robot_trajectory_msg;
     local_trajectory.getRobotTrajectoryMsg(robot_trajectory_msg);
     local_solution = robot_trajectory_msg.joint_trajectory;
-    const double local_duration =
-      local_trajectory.getWayPointDurationFromStart(local_trajectory.getWayPointCount() - 1);
     local_solution.header.frame_id = local_duration >= kStartPointTrajectoryMinDuration ?
       kStartPointTrajectoryFrame : kReproducedTrajectoryFrame;
 
@@ -179,6 +192,7 @@ private:
   double stuck_position_tolerance_ = 1.0e-6;
   bool stop_before_collision_ = true;
   bool path_invalidation_event_sent_ = false;
+  bool hold_empty_until_new_trajectory_ = false;
 };
 
 }  // namespace movensys_manipulator_moveit_config

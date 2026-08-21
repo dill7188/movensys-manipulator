@@ -34,6 +34,9 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(octomap REQUIRED)
+find_package(octomap_msgs REQUIRED)
+find_package(nvblox_msgs QUIET)
 find_package(Eigen3 REQUIRED)
 
 # MoveIt Servo's ServoCommandType service only exists on Jazzy and newer; it is
@@ -154,6 +157,24 @@ ament_target_dependencies(isaacsim_bridge rclcpp rclcpp_action control_msgs traj
 add_executable(gazebo_bridge src/gazebo_bridge.cpp)
 ament_target_dependencies(gazebo_bridge rclcpp rclcpp_action control_msgs trajectory_msgs sensor_msgs std_srvs)
 
+if(nvblox_msgs_FOUND)
+  add_executable(nvblox_esdf_to_planning_scene src/nvblox_esdf_to_planning_scene.cpp)
+  target_include_directories(nvblox_esdf_to_planning_scene PRIVATE ${OCTOMAP_INCLUDE_DIRS})
+  target_link_libraries(nvblox_esdf_to_planning_scene ${OCTOMAP_LIBRARIES})
+  ament_target_dependencies(nvblox_esdf_to_planning_scene
+    moveit_msgs
+    nvblox_msgs
+    octomap_msgs
+    rclcpp
+  )
+  install(TARGETS
+    nvblox_esdf_to_planning_scene
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
+  )
+else()
+  message(STATUS "nvblox_msgs not found; skipping nvblox_esdf_to_planning_scene")
+endif()
+
 if(HAVE_SERVO_COMMAND_TYPE)
   add_executable(keyboard_teleop src/keyboard_teleop.cpp)
   ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs control_msgs moveit_msgs std_msgs tf2 tf2_ros)
@@ -227,6 +248,7 @@ ament_target_dependencies(hybrid_pose_alternator
   rclcpp
   rclcpp_action
   moveit_msgs
+  sensor_msgs
 )
 
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
