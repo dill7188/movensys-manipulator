@@ -49,8 +49,8 @@ public:
     acceleration_scaling_ = declare_parameter<double>("max_acceleration_scaling_factor", 0.4);
     tolerance_ = declare_parameter<double>("joint_tolerance", 0.01);
     reach_tolerance_ = declare_parameter<double>("goal_reached_tolerance", tolerance_);
-    wait_after_reach_seconds_ = declare_parameter<double>("wait_after_reach_seconds", 5.0);
-    retry_delay_seconds_ = declare_parameter<double>("retry_delay_seconds", 10.0);
+    wait_after_reach_seconds_ = declare_parameter<double>("wait_after_reach_seconds", 1.0);
+    retry_delay_seconds_ = declare_parameter<double>("retry_delay_seconds", 2.0);
     goal_response_timeout_seconds_ = declare_parameter<double>("goal_response_timeout_seconds", 2.0);
     result_timeout_seconds_ = declare_parameter<double>("result_timeout_seconds", 60.0);
     reach_timeout_seconds_ = declare_parameter<double>("reach_timeout_seconds", 20.0);

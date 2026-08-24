@@ -51,7 +51,6 @@ public:
       node_->declare_parameter<int>("stop_before_collision_forward_trajectory.max_stuck_iterations", 100);
     stuck_position_tolerance_ =
       node_->declare_parameter<double>("stop_before_collision_forward_trajectory.stuck_position_tolerance", 1.0e-6);
-
     const auto robot_model = planning_scene_monitor_->getRobotModel();
     joint_group_ = robot_model ? robot_model->getJointModelGroup(group_name_) : nullptr;
     if (!joint_group_) {

@@ -32,14 +32,18 @@ bool TimeIndexedSampler::initialize(
     node_->declare_parameter<double>("time_indexed_sampler.goal_reached_tolerance", 1.0e-3);
   first_point_blend_duration_ =
     node_->declare_parameter<double>("time_indexed_sampler.first_point_blend_duration", 0.5);
+  start_point_trajectory_publish_count_ =
+    node_->declare_parameter<int>("time_indexed_sampler.start_point_trajectory_publish_count", 20);
   debug_no_store_reference_trajectory_ =
     node_->declare_parameter<bool>("time_indexed_sampler.debug_no_store_reference_trajectory", false);
 
   RCLCPP_INFO(
     node_->get_logger(),
     "Initialized TimeIndexedSampler for group '%s' "
-    "(lookahead_time=%.3f, output_dt=%.3f, first_point_blend_duration=%.3f)",
-    group_name.c_str(), lookahead_time_, output_dt_, first_point_blend_duration_);
+    "(lookahead_time=%.3f, output_dt=%.3f, first_point_blend_duration=%.3f, "
+    "start_point_trajectory_publish_count=%d)",
+    group_name.c_str(), lookahead_time_, output_dt_, first_point_blend_duration_,
+    start_point_trajectory_publish_count_);
   return true;
 }
 
@@ -51,7 +55,7 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
     reference_trajectory_.reset();
     reference_duration_ = 0.0;
     trajectory_time_offset_ = 0.0;
-    pending_first_point_blend_ = false;
+    start_point_trajectory_publishes_remaining_ = 0;
     RCLCPP_WARN(node_->get_logger(), "TimeIndexedSampler received an empty reference trajectory");
     return feedback_;
   }
@@ -63,7 +67,7 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
     reference_trajectory_.reset();
     reference_duration_ = 0.0;
     trajectory_time_offset_ = 0.0;
-    pending_first_point_blend_ = false;
+    start_point_trajectory_publishes_remaining_ = 0;
     RCLCPP_WARN(
       node_->get_logger(),
       "TimeIndexedSampler debug_no_store_reference_trajectory=true: received points=%zu, duration=%.3f, not storing",
@@ -76,8 +80,10 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
   reference_duration_ =
     reference_trajectory_->getWayPointDurationFromStart(reference_trajectory_->getWayPointCount() - 1);
   trajectory_time_offset_ = 0.0;
-  pending_first_point_blend_ = first_point_blend_duration_ > std::numeric_limits<double>::epsilon();
-  if (!pending_first_point_blend_) {
+  start_point_trajectory_publishes_remaining_ =
+    first_point_blend_duration_ > std::numeric_limits<double>::epsilon() ?
+    std::max(1, start_point_trajectory_publish_count_) : 0;
+  if (start_point_trajectory_publishes_remaining_ == 0) {
     trajectory_start_time_ = node_->now();
   }
   has_reference_trajectory_ = true;
@@ -85,9 +91,11 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::addTrajectorySeg
   RCLCPP_INFO(
     node_->get_logger(),
     "TimeIndexedSampler accepted reference trajectory: "
-    "points=%zu, duration=%.3f, first_point_blend_duration=%.3f",
+    "points=%zu, duration=%.3f, first_point_blend_duration=%.3f, "
+    "start_point_trajectory_publish_count=%d",
     reference_trajectory_->getWayPointCount(),
-    reference_duration_, first_point_blend_duration_);
+    reference_duration_, first_point_blend_duration_,
+    start_point_trajectory_publishes_remaining_);
 
   return feedback_;
 }
@@ -104,13 +112,17 @@ moveit_msgs::action::LocalPlanner::Feedback TimeIndexedSampler::getLocalTrajecto
     return feedback_;
   }
 
-  if (pending_first_point_blend_) {
-    pending_first_point_blend_ = false;
-    trajectory_start_time_ = node_->now();
+  if (start_point_trajectory_publishes_remaining_ > 0) {
     local_trajectory.addSuffixWayPoint(
       reference_trajectory_->getWayPoint(0), first_point_blend_duration_);
-    RCLCPP_INFO(
+    --start_point_trajectory_publishes_remaining_;
+    if (start_point_trajectory_publishes_remaining_ == 0) {
+      trajectory_start_time_ = node_->now();
+    }
+    RCLCPP_INFO_THROTTLE(
       node_->get_logger(),
+      *node_->get_clock(),
+      1000,
       "TimeIndexedSampler sampled first reference waypoint as a single %.3f s trajectory",
       first_point_blend_duration_);
     return feedback_;
@@ -138,7 +150,7 @@ double TimeIndexedSampler::getTrajectoryProgress(const moveit::core::RobotState 
     return 0.0;
   }
 
-  if (pending_first_point_blend_) {
+  if (start_point_trajectory_publishes_remaining_ > 0) {
     return 0.0;
   }
 
@@ -154,7 +166,7 @@ bool TimeIndexedSampler::reset()
   reference_trajectory_.reset();
   reference_duration_ = 0.0;
   trajectory_time_offset_ = 0.0;
-  pending_first_point_blend_ = false;
+  start_point_trajectory_publishes_remaining_ = 0;
   return true;
 }
 

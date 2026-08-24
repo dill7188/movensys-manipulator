@@ -18,18 +18,18 @@ def generate_launch_description() -> LaunchDescription:
         description="Publish static camera TF. Set false while tuning camera TF with GUI."
     )
     camera_tf_args = [
-        DeclareLaunchArgument("camera_0_x", default_value="-0.442"),
-        DeclareLaunchArgument("camera_0_y", default_value="-0.129"),
-        DeclareLaunchArgument("camera_0_z", default_value="0.917"),
+        DeclareLaunchArgument("camera_0_x", default_value="-0.432"),
+        DeclareLaunchArgument("camera_0_y", default_value="-0.149"),
+        DeclareLaunchArgument("camera_0_z", default_value="0.967"),
         DeclareLaunchArgument("camera_0_roll", default_value="-0.076"),
-        DeclareLaunchArgument("camera_0_pitch", default_value="0.847"),
-        DeclareLaunchArgument("camera_0_yaw", default_value="0.646"),
-        DeclareLaunchArgument("camera_1_x", default_value="0.367"),
-        DeclareLaunchArgument("camera_1_y", default_value="-0.235"),
+        DeclareLaunchArgument("camera_0_pitch", default_value="1.017"),
+        DeclareLaunchArgument("camera_0_yaw", default_value="0.696"),
+        DeclareLaunchArgument("camera_1_x", default_value="0.377"),
+        DeclareLaunchArgument("camera_1_y", default_value="-0.255"),
         DeclareLaunchArgument("camera_1_z", default_value="0.909"),
         DeclareLaunchArgument("camera_1_roll", default_value="0.074"),
         DeclareLaunchArgument("camera_1_pitch", default_value="0.867"),
-        DeclareLaunchArgument("camera_1_yaw", default_value="2.342"),
+        DeclareLaunchArgument("camera_1_yaw", default_value="2.402"),
     ]
 
     pkg_share = get_package_share_directory('movensys_manipulator_perception')

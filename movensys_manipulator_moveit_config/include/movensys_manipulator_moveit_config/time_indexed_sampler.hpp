@@ -55,9 +55,10 @@ private:
   double first_point_blend_duration_ = 0.5;
   double reference_duration_ = 0.0;
   double trajectory_time_offset_ = 0.0;
+  int start_point_trajectory_publish_count_ = 1;
+  int start_point_trajectory_publishes_remaining_ = 0;
   bool debug_no_store_reference_trajectory_ = false;
   bool has_reference_trajectory_ = false;
-  bool pending_first_point_blend_ = false;
   moveit_msgs::action::LocalPlanner::Feedback feedback_;
 };
 
