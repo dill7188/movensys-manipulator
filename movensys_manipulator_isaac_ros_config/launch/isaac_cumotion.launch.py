@@ -178,6 +178,8 @@ def launch_setup(context: LaunchContext, *args, **kwargs) -> List[Node]:
                 'publish_curobo_world_as_voxels': False,
                 'publish_voxel_size': 0.02,
                 'max_publish_voxels': 50000,
+                'grid_center_m': [0.0, 0.0, 0.35],
+                'grid_size_m': [1.1, 0.9, 0.8],
             }
         ]
     )

@@ -50,10 +50,10 @@ public:
     tolerance_ = declare_parameter<double>("joint_tolerance", 0.01);
     reach_tolerance_ = declare_parameter<double>("goal_reached_tolerance", tolerance_);
     wait_after_reach_seconds_ = declare_parameter<double>("wait_after_reach_seconds", 1.0);
-    retry_delay_seconds_ = declare_parameter<double>("retry_delay_seconds", 2.0);
+    retry_delay_seconds_ = declare_parameter<double>("retry_delay_seconds", 5.0);
     goal_response_timeout_seconds_ = declare_parameter<double>("goal_response_timeout_seconds", 2.0);
     result_timeout_seconds_ = declare_parameter<double>("result_timeout_seconds", 60.0);
-    reach_timeout_seconds_ = declare_parameter<double>("reach_timeout_seconds", 20.0);
+    reach_timeout_seconds_ = declare_parameter<double>("reach_timeout_seconds", 3.0);
     monitor_period_seconds_ = declare_parameter<double>("monitor_period_seconds", 0.1);
     joint_state_topic_ = declare_parameter<std::string>("joint_state_topic", "/joint_states");
 
